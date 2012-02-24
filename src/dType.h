@@ -6,7 +6,7 @@
 // _/_/_/   _/_/_/  _/_/_/_/_/     _/     _/_/_/   _/_/
 // ===========================================================
 //
-// dType.hpp: Basic template classes for elementary types
+// dType.h: Basic template classes for elementary types
 //
 // Copyright (C) 2011	Xiuwen Zheng
 //
@@ -26,7 +26,7 @@
 // If not, see <http://www.gnu.org/licenses/>.
 
 /**
- *	\file     dType.hpp
+ *	\file     dType.h
  *	\author   Xiuwen Zheng
  *	\version  1.0
  *	\date     2007 - 2011
@@ -332,7 +332,7 @@ namespace CoreArray
 			static const Type Val = -1;
 			static const TypeEx ValEx = -1;
 		};
-	};
+	}
 
 	#ifndef COREARRAY_SUNPROCC
 	#  pragma pack(push, 1)
@@ -405,7 +405,7 @@ namespace CoreArray
 	inline IntType BITS_ifsign(IntType val)
 	{
 		return (val & BITS<bits>::Flag) ? (val | BITS<bits>::NOTMask2) : val;
-	};
+	}
 
 
 	// Bit Type Traits

@@ -27,11 +27,11 @@
 
 
 // CoreArray library header
-#include <dType.hpp>
-#include <dVect.hpp>
-#include <CoreGDSLink.hpp>
-#include <dGenGWAS.hpp>
-#include <dGWASMath.hpp>
+#include <dType.h>
+#include <dVect.h>
+#include <CoreGDSLink.h>
+#include <dGenGWAS.h>
+#include <dGWASMath.h>
 
 // Standard library header
 #include <vector>
@@ -599,8 +599,8 @@ namespace IBD
 		{
 			// check
 			bool WorkFlag;
-			IdMatTriD idx;
-			TIBD *pIBD;
+			IdMatTriD idx(0);
+			TIBD *pIBD = NULL;
 			int *pniter = NULL;
 			{
 				TdAutoMutex _m(_Mutex);
@@ -730,7 +730,6 @@ namespace IBD
 		_Mutex = plc_InitMutex();
 
 		// Initialize progress information
-		const int n = MCWorkingGeno.Space.SNPNum();
 		MCWorkingGeno.Progress.Info = Info;
 		MCWorkingGeno.Progress.Show() = verbose;
 		MCWorkingGeno.Progress.Init(nMatTriD);

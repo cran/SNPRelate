@@ -16,8 +16,8 @@
 #ifndef _dGenGWAS_H_
 #define _dGenGWAS_H_
 
-#include <dType.hpp>
-#include <CoreGDSLink.hpp>
+#include <dType.h>
+#include <CoreGDSLink.h>
 #include <ctime>
 #include <vector>
 #include <string>
@@ -25,7 +25,7 @@
 #include <memory>
 
 #ifndef NO_COREARRAY_VECTORIZATION
-#  include <dVect.hpp>
+#  include <dVect.h>
 #endif
 
 
@@ -221,7 +221,7 @@ namespace GWAS
 
 		void Init(Int64 TotalCnt, bool ShowInit=true);
 		bool Forward(Int64 step = 1, bool Show=true);
-		virtual void ShowProgress();
+		void ShowProgress();
 
         /// Return the current percentile
 		inline int Percent() const { return fPercent; }

@@ -13,7 +13,7 @@
 // Description :
 // ===========================================================
 
-#include <dGenGWAS.hpp>
+#include <dGenGWAS.h>
 
 using namespace std;
 using namespace GWAS;
@@ -744,7 +744,7 @@ CdPackSampGenoMem::CdPackSampGenoMem(CdGenoWorkSpace &space): CdBaseGenoMem(spac
 {
 	fRow = space.SampleNum();
 	fColumn = space.SNPNum();
-	fElmSize = (fColumn & 0x03 > 0) ? (fColumn/4+1) : (fColumn/4);
+	fElmSize = ((fColumn & 0x03) > 0) ? (fColumn/4+1) : (fColumn/4);
 	fMemory = new UInt8[fRow*fElmSize];
 	CdBufSpace buf(space, true, CdBufSpace::acInc);
 	for (int i=0; i < fRow; i++)
@@ -879,10 +879,8 @@ void CdProgression::ShowProgress()
 		s.erase(s.size()-1, 1);
 		if (Info.empty())
 			Rprintf("%s\t%d%%\n", s.c_str(), fPercent);
-//			cout << s << "\t" << fPercent << "%" << endl;
 		else
 			Rprintf("%s\t%s\t%d%%\n", Info.c_str(), s.c_str(), fPercent);
-//			cout << Info << "\t" << s << "\t" << fPercent << "%" << endl;
 	}
 }
 
@@ -1073,8 +1071,6 @@ IdMatTri & IdMatTri::operator= (Int64 val)
 
 IdMatTriD::IdMatTriD(int n)
 {
-	if (n <= 1)
-		throw ErrMatIndex("Invalid n: %d", n);
 	fN = n; fRow = 0; fColumn = 1; fOffset = 0;
 }
 
@@ -1253,7 +1249,7 @@ CMultiCoreWorkingGeno::~CMultiCoreWorkingGeno()
 
 void CMultiCoreWorkingGeno::InitParam(bool snp_direction, bool read_snp_order, long block_size)
 {
-	if (_Mutex == NULL) _Mutex = plc_InitSuspend();
+	if (_Mutex == NULL) _Mutex = plc_InitMutex();
 	if (_Suspend == NULL) _Suspend = plc_InitSuspend();
 
 	_SNP_Direction = snp_direction;
@@ -1283,15 +1279,32 @@ void CMultiCoreWorkingGeno::Run(int nThread, TDoBlockRead do_read, TDoEachThread
 	_Num_Thread = nThread;
 	_DoRead = do_read; _DoThread = do_thread;
 	_Param = Param;
-	_Num_Use = 0; _If_End = false;
+	_If_End = false;
 	_StepCnt = 0; _StepStart = 0;
+
+	_Num_Use = _Num_Thread;
 	plc_DoBaseThread(__DoThread_WorkingGeno, this, nThread);
 }
 
 void CMultiCoreWorkingGeno::_DoThread_WorkingGeno(TdThread Thread, int ThreadIndex)
 {
+	// initialize ...
+	plc_LockMutex(_Mutex);
+	_Num_Use --;
+	plc_UnlockMutex(_Mutex);
+
 	// if not main thread, suspend
-	if (ThreadIndex > 0) plc_Suspend(_Suspend);
+	if (ThreadIndex == 0)
+	{
+		int I;
+		do {
+			plc_LockMutex(_Mutex);
+			I = _Num_Use;
+			plc_UnlockMutex(_Mutex);
+		} while (I > 0);
+	} else {
+		plc_Suspend(_Suspend);
+	}
 
 	// for loop
 	while (!_If_End)
@@ -1331,6 +1344,7 @@ void CMultiCoreWorkingGeno::_DoThread_WorkingGeno(TdThread Thread, int ThreadInd
 			}
 			_StepStart = _Start_Position;
 			_Start_Position += _StepCnt;
+
 			// handle reading ...
 			_DoRead(_Geno_Block.get(), _StepStart, _StepCnt, _Param);
 

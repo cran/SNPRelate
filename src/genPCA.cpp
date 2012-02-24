@@ -30,10 +30,10 @@
 #define _FuncPCA_H_
 
 // CoreArray library header
-#include <dType.hpp>
-#include <dVect.hpp>
-#include <CoreGDSLink.hpp>
-#include <dGenGWAS.hpp>
+#include <dType.h>
+#include <dVect.h>
+#include <CoreGDSLink.h>
+#include <dGenGWAS.h>
 
 // Standard library header
 #include <cmath>
@@ -298,7 +298,7 @@ namespace PCA
 		memset((void*)PCA_gSum.get(), 0, SNP_Cnt*sizeof(int));
 		memset((void*)PCA_gNum.get(), 0, SNP_Cnt*sizeof(int));
 
-		UInt8 *p, *s;
+		UInt8 *p;
 		double *pf, *pp;
 
 		// calculate the averages of genotypes for each SelSNP

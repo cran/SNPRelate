@@ -27,10 +27,10 @@
 
 
 // CoreArray library header
-#include <dType.hpp>
-#include <dVect.hpp>
-#include <CoreGDSLink.hpp>
-#include <dGenGWAS.hpp>
+#include <dType.h>
+#include <dVect.h>
+#include <CoreGDSLink.h>
+#include <dGenGWAS.h>
 
 // Standard library header
 #include <cmath>
@@ -416,7 +416,7 @@ namespace LD
 		double p_A = pA_A + pB_A;
 		double p_B = pA_B + pB_B;
 		double D = pA_A - pA*p_A;
-		double r = D / sqrt(pA * p_A * pB * p_B);
+		// double r = D / sqrt(pA * p_A * pB * p_B);
 		D = D / ((D>=0) ? min(pA*p_B, pB*p_A) : max(-pA*p_A, -pB*p_B));
 		return D;
 	}
@@ -443,7 +443,7 @@ namespace LD
 		double p_A = pA_A + pB_A;
 		double p_B = pA_B + pB_B;
 		double D = pA_A - pA*p_A;
-		double r = D / sqrt(pA * p_A * pB * p_B);
+		// double r = D / sqrt(pA * p_A * pB * p_B);
 		D = D / ((D>=0) ? min(pA*p_B, pB*p_A) : max(-pA*p_A, -pB*p_B));
 		return D;
 	}
@@ -662,7 +662,8 @@ namespace LD
 				}
 			}
 			// handle
-			if (out_SNP[i] = (ValidCnt == TotalCnt))
+			out_SNP[i] = (ValidCnt == TotalCnt);
+			if (out_SNP[i])
 			{
 				ListGeno.push_back(TSNP(i, pos_bp[i], nPackedSamp));
 				memmove(&(ListGeno.back().genobuf[0]), buf.get(), nPackedSamp);
@@ -715,7 +716,8 @@ namespace LD
 				}
 			}
 			// handle
-			if (out_SNP[i] = (ValidCnt == TotalCnt))
+			out_SNP[i] = (ValidCnt == TotalCnt);
+			if (out_SNP[i])
 			{
 				ListGeno.push_front(TSNP(i, pos_bp[i], nPackedSamp));
 				memmove(&(ListGeno.front().genobuf[0]), buf.get(), nPackedSamp);

@@ -25,7 +25,7 @@
 // License along with CoreArray.
 // If not, see <http://www.gnu.org/licenses/>.
 
-#include <CoreGDSLink.hpp>
+#include <CoreGDSLink.h>
 
 #if defined(COREARRAY_UNIX)
 #  include <dlfcn.h>
@@ -204,15 +204,22 @@ std::string & GDSInterface::gds_LastError()
 
 
 
-
-
 // ******************************************************************
+
+template <typename TO, typename FROM> TO nasty_cast(FROM f)
+{
+	union {
+		FROM f; TO t;
+	} u;
+	u.f = f;
+	return u.t;
+}
 
 #if defined(COREARRAY_UNIX)
 
 	static void* GDS_Handle = NULL;
 	#define LOAD(var, type, name)	\
-		var = (type)dlsym(GDS_Handle, name); \
+		var = nasty_cast<type>(dlsym(GDS_Handle, name)); \
 		if ((err = dlerror()) != NULL) \
 			{ throw ErrCoreArray(err); DoneGDSInterface(); }
 
@@ -220,7 +227,7 @@ std::string & GDSInterface::gds_LastError()
 
 	static HMODULE GDS_Handle = NULL;
 	#define LOAD(var, type, name)	\
-		var = (type)GetProcAddress(GDS_Handle, name); \
+		var = nasty_cast<type>(GetProcAddress(GDS_Handle, name)); \
 		if (var == NULL) \
 			{ throw ErrCoreArray("No %s function.", name); }
 

@@ -27,10 +27,10 @@
 
 
 // CoreArray library header
-#include <dType.hpp>
-#include <dVect.hpp>
-#include <CoreGDSLink.hpp>
-#include <dGenGWAS.hpp>
+#include <dType.h>
+#include <dVect.h>
+#include <CoreGDSLink.h>
+#include <dGenGWAS.h>
 
 // Standard library header
 #include <cmath>
@@ -62,6 +62,7 @@ namespace IBS
 	/// Packed size
 	static const long _size = 256*256;
 
+	/// IBS
 	/// The number of IBS 0 in the packed genotype
 	UInt8 IBS0_Num_SNP[_size];
 	/// The number of IBS 1 in the packed genotype
@@ -69,8 +70,16 @@ namespace IBS
 	/// The number of IBS 2 in the packed genotype
 	UInt8 IBS2_Num_SNP[_size];
 
+	/// Genetic Distance
+	/// The distance in the packed genotype
+	UInt8 Gen_Dist_SNP[_size];
+	/// The flag of use of allele frequencies
+	UInt8 Gen_Freq_Flag[_size];
+
+
 	/// The packed genotype buffer
 	auto_ptr<UInt8> GenoPacked;
+	auto_ptr<double> GenoAlleleFreq;
 
 	/// Thread variables
 	const int N_MAX_THREAD = 256;
@@ -84,6 +93,15 @@ namespace IBS
 	{
 		UInt32 IBS0, IBS1, IBS2;
 		TIBSflag() { IBS0 = IBS1 = IBS2 = 0; }
+	};
+
+	/// The pointer to the variable PublicIBS in the function "DoDistCalculate"
+	/// The structure of genetic distance
+	struct TDistflag
+	{
+		Int64 SumGeno;
+		double SumAFreq;
+		TDistflag() { SumGeno = 0; SumAFreq = 0; }
 	};
 
 
@@ -113,6 +131,10 @@ namespace IBS
 			PACKED_COND((b1 < 3) && (b2 < 3) && (abs(b1-b2)==1), IBS1_Num_SNP, sum++);
 			/// The number of IBS 2 in the packed genotype
 			PACKED_COND((b1 < 3) && (b2 < 3) && (abs(b1-b2)==0), IBS2_Num_SNP, sum++);
+			
+			/// The distance in the packed genotype
+			PACKED_COND((b1 < 3) && (b2 < 3), Gen_Dist_SNP, sum += b1*(2-b2) + (2-b1)*b2);
+			PACKED_COND((b1 < 3) && (b2 < 3), Gen_Freq_Flag, sum |= (1 << i));
 		}
 	} InitObj;
 
@@ -130,7 +152,7 @@ namespace IBS
 		if (BlockSNP < 16) BlockSNP = 16;
 	}
 
-	/// Convert the raw genotypes to the mean-adjusted genotypes
+	/// Convert the raw genotypes
 	static void _Do_IBS_ReadBlock(UInt8 *GenoBuf, long Start, long SNP_Cnt, void* Param)
 	{
 		// init ...
@@ -184,6 +206,85 @@ namespace IBS
 		MCWorkingGeno.Run(NumThread, &_Do_IBS_ReadBlock, &_Do_IBS_Compute, PublicIBS.get());
 	}
 
+
+
+	/// *********************************************************************************
+	/// **    **
+	/// *********************************************************************************
+
+	/// Convert the raw genotypes
+	static void _Do_Dist_ReadBlock(UInt8 *GenoBuf, long Start, long SNP_Cnt, void* Param)
+	{
+		// init ...
+		const int nSamp = MCWorkingGeno.Space.SampleNum();
+		UInt8 *pG = GenoBuf;
+		UInt8 *pPack = GenoPacked.get();
+
+		// pack genotypes
+		for (long iSamp=0; iSamp < nSamp; iSamp++)
+		{
+			pPack = PackGenotypes(pG, SNP_Cnt, pPack);
+			pG += SNP_Cnt;
+		}
+
+		// calculate the allele frequencies
+		for (long iSNP=0; iSNP < SNP_Cnt; iSNP++)
+		{
+			UInt8 *p = GenoBuf + iSNP;
+			double &Freq = GenoAlleleFreq.get()[iSNP];
+			int n = 0; Freq = 0;
+			for (long iSamp=0; iSamp < nSamp; iSamp++)
+			{
+				if (*p < 3) { Freq += *p; n += 2; }
+				p += SNP_Cnt;
+			}
+			Freq = (n > 0) ? Freq/n : 0;
+			Freq = 8 * Freq * (1 - Freq);
+		}
+	}
+
+	/// Compute the covariate matrix
+	static void _Do_Dist_Compute(int ThreadIndex, long Start, long SNP_Cnt, void* Param)
+	{
+		long Cnt = IBS_Thread_MatCnt[ThreadIndex];
+		IdMatTriD I = IBS_Thread_MatIdx[ThreadIndex];
+		TDistflag *p = ((TDistflag*)Param) + I.Offset();
+		long _PackSNPLen = (SNP_Cnt / 4) + (SNP_Cnt % 4 ? 1 : 0);
+
+		for (; Cnt > 0; Cnt--, ++I, p++)
+		{
+			UInt8 *p1 = GenoPacked.get() + I.Row()*_PackSNPLen;
+			UInt8 *p2 = GenoPacked.get() + I.Column()*_PackSNPLen;
+			for (long k=0; k < _PackSNPLen; k++, p1++, p2++)
+			{
+				size_t t = (size_t(*p1) << 8) | (*p2);
+				p->SumGeno += Gen_Dist_SNP[t];
+
+				UInt8 flag = Gen_Freq_Flag[t];
+				if (flag & 0x01) p->SumAFreq += GenoAlleleFreq.get()[4*k];
+				if (flag & 0x02) p->SumAFreq += GenoAlleleFreq.get()[4*k+1];
+				if (flag & 0x04) p->SumAFreq += GenoAlleleFreq.get()[4*k+2];
+				if (flag & 0x08) p->SumAFreq += GenoAlleleFreq.get()[4*k+3];
+			}
+		}
+	}
+
+	/// Calculate the genetic distance matrix
+	void DoDistCalculate(CdMatTriDiag<TDistflag> &PublicDist, int NumThread,
+		const char *Info, bool verbose)
+	{
+		// Initialize ...
+		GenoPacked.reset(new UInt8[BlockSNP * PublicDist.N()]);
+		memset(PublicDist.get(), 0, sizeof(TDistflag)*PublicDist.Size());
+		GenoAlleleFreq.reset(new double[BlockSNP]);
+
+		MCWorkingGeno.Progress.Info = Info;
+		MCWorkingGeno.Progress.Show() = verbose;
+		MCWorkingGeno.InitParam(true, true, BlockSNP);
+
+		MCWorkingGeno.SplitJobs(NumThread, PublicDist.N(), IBS_Thread_MatIdx, IBS_Thread_MatCnt);
+		MCWorkingGeno.Run(NumThread, &_Do_Dist_ReadBlock, &_Do_Dist_Compute, PublicDist.get());
+	}
 }
 
 

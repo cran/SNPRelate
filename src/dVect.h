@@ -28,7 +28,7 @@
 #ifndef _dVect_H_
 #define _dVect_H_
 
-#include <dType.hpp>
+#include <dType.h>
 
 namespace CoreArray
 {

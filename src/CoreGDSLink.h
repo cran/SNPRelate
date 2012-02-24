@@ -28,7 +28,7 @@
 #ifndef _CoreGDSLink_H_
 #define _CoreGDSLink_H_
 
-#include <dType.hpp>
+#include <dType.h>
 #include <cstdio>
 #include <cstdlib>
 #include <climits>
@@ -199,3 +199,4 @@ namespace GDSInterface
 }
 
 #endif /* _CoreGDSLink_H_ */
+
