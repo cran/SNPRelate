@@ -6,7 +6,7 @@
 // _/_/_/   _/_/_/  _/_/_/_/_/     _/     _/_/_/   _/_/
 // ===========================================================
 //
-// main.cpp: Relatedness, Linkage Disequilibrium and Principal Component Analysis
+// SNPRelate.cpp: Relatedness, Linkage Disequilibrium and Principal Component Analysis
 //
 // Copyright (C) 2013	Xiuwen Zheng
 //
@@ -66,26 +66,56 @@ namespace PCA
 namespace IBS
 {
 	/// The structure of IBS states
-	struct TIBSflag
+	struct TIBS_Flag
 	{
 		UInt32 IBS0, IBS1, IBS2;
-		TIBSflag() { IBS0 = IBS1 = IBS2 = 0; }
+		TIBS_Flag() { IBS0 = IBS1 = IBS2 = 0; }
 	};
 
 	void AutoDetectSNPBlockSize(int nSamp, bool Detect=true);
-	void DoIBSCalculate(CdMatTriDiag<TIBSflag> &PublicIBS, int NumThread,
+	void DoPLINKIBSCalculate(CdMatTriDiag<TIBS_Flag> &PublicIBS, int NumThread,
+		const char *Info, bool verbose);
+	void DoIBSCalculate(CdMatTri<TIBS_Flag> &PublicIBS, int NumThread,
 		const char *Info, bool verbose);
 
 	/// The structure of genetic distance
-	struct TDistflag
+	struct TDissflag
 	{
 		Int64 SumGeno;
 		double SumAFreq;
-		TDistflag() { SumGeno = 0; SumAFreq = 0; }
+		TDissflag() { SumGeno = 0; SumAFreq = 0; }
 	};
 
 	/// Calculate the genetic distance matrix
-	void DoDistCalculate(CdMatTri<TDistflag> &PublicDist, int NumThread,
+	void DoDissCalculate(CdMatTri<TDissflag> &PublicDist, int NumThread,
+		const char *Info, bool verbose);
+
+
+	/// The structure of KING IBD estimator
+	struct TKINGHomoFlag
+	{
+		UInt32 IBS0;       //< the number of loci sharing no allele
+		UInt32 SumSq;      //< \sum_m (X_m^{(i)} - X_m^{(j)})^2
+		double SumAFreq;   //< \sum_m p_m (1 - p_m)
+		double SumAFreq2;  //< \sum_m p_m^2 (1 - p_m)^2
+		TKINGHomoFlag() { IBS0 = SumSq = 0; SumAFreq = SumAFreq2 = 0; }
+	};
+
+	struct TKINGRobustFlag
+	{
+		UInt32 IBS0;       //< the number of loci sharing no allele
+		UInt32 SumSq;      //< \sum_m (X_m^{(i)} - X_m^{(j)})^2
+		UInt32 N1_Aa;      //< the number of hetet loci for the first individual
+		UInt32 N2_Aa;      //< the number of hetet loci for the second individual
+		double SumAFreq2;  //< \sum_m p_m^2 (1 - p_m)^2
+		TKINGRobustFlag() { IBS0 = SumSq = N1_Aa = N2_Aa = 0; SumAFreq2 = 0; }
+	};
+
+	/// Calculate KING IBD estimators
+	void DoKINGCalculate(CdMatTri<TKINGHomoFlag> &PublicKING, int NumThread,
+		const char *Info, bool verbose);
+	/// Calculate KING IBD estimators
+	void DoKINGCalculate(CdMatTri<TKINGRobustFlag> &PublicKING, int NumThread,
 		const char *Info, bool verbose);
 }
 
@@ -773,6 +803,9 @@ DLLEXPORT void gnrPCASampLoading(int *Num, double *EigenVal, int *EigenCnt,
 }
 
 
+// ***********************************************************************
+// the functions for identity-by-state (IBS)
+//
 
 // the functions for Identity by state (IBS)
 
@@ -790,24 +823,23 @@ DLLEXPORT void gnrIBSAve(LongBool *Verbose, LongBool *DataCache, int *NumThread,
 				Rprintf("IBS:\tthe sum of all working genotypes (0, 1 and 2) = %.0f\n", GenoSum);
 		}
 
-		// ******** The calculation of genetic covariance matrix ********
+		// ******** The calculation of IBS matrix ********
 
 		// the number of samples
 		const int n = MCWorkingGeno.Space.SampleNum();
 		// to detect the block size
 		IBS::AutoDetectSNPBlockSize(n);
 		// the upper-triangle genetic covariance matrix
-		CdMatTriDiag<IBS::TIBSflag> IBS(IBS::TIBSflag(), n);
+		CdMatTri<IBS::TIBS_Flag> IBS(n);
 
 		// Calculate the IBS matrix
 		IBS::DoIBSCalculate(IBS, *NumThread, "IBS:", *Verbose);
 
 		// output
-		IBS::TIBSflag *p = IBS.get();
+		IBS::TIBS_Flag *p = IBS.get();
 		for (int i=0; i < n; i++)
 		{
-			out_IBSMat[i*n + i] = 1.0;
-			for (int j=i+1; j < n; j++, p++)
+			for (int j=i; j < n; j++, p++)
 			{
 				out_IBSMat[i*n + j] = out_IBSMat[j*n + i] =
 					double(0.5*p->IBS1 + p->IBS2) / (p->IBS0 + p->IBS1 + p->IBS2);
@@ -832,27 +864,26 @@ DLLEXPORT void gnrIBSNum(LongBool *Verbose, LongBool *DataCache, int *NumThread,
 				Rprintf("IBS:\tthe sum of all working genotypes (0, 1 and 2) = %.0f\n", GenoSum);
 		}
 
-		// ******** The calculation of genetic covariance matrix ********
+		// ******** The calculation of IBS matrix ********
 
 		// the number of samples
 		const int n = MCWorkingGeno.Space.SampleNum();
 		// to detect the block size
 		IBS::AutoDetectSNPBlockSize(n);
-		// the upper-triangle genetic covariance matrix
-		CdMatTriDiag<IBS::TIBSflag> IBS(IBS::TIBSflag(), n);
+
+		// the upper-triangle IBS matrix
+		CdMatTri<IBS::TIBS_Flag> IBS(n);
+
+		Rprintf("OK\n");
 
 		// Calculate the IBS matrix
-		auto_ptr<int> I(new int[n]);
-		MCWorkingGeno.Space.GetSampValidNum(I.get());
 		IBS::DoIBSCalculate(IBS, *NumThread, "IBS:", *Verbose);
 
 		// output
-		IBS::TIBSflag *p = IBS.get();
+		IBS::TIBS_Flag *p = IBS.get();
 		for (int i=0; i < n; i++)
 		{
-			out_IBS0[i*n + i] = 0; out_IBS1[i*n + i] = 0;
-			out_IBS2[i*n + i] = I.get()[i];
-			for (int j=i+1; j < n; j++, p++)
+			for (int j=i; j < n; j++, p++)
 			{
 				out_IBS0[i*n + j] = out_IBS0[j*n + i] = p->IBS0;
 				out_IBS1[i*n + j] = out_IBS1[j*n + i] = p->IBS1;
@@ -865,7 +896,10 @@ DLLEXPORT void gnrIBSNum(LongBool *Verbose, LongBool *DataCache, int *NumThread,
 }
 
 
+
+// ***********************************************************************
 // the functions for identity-by-descent (IBD)
+//
 
 /// to compute the IBD coefficients by PLINK method of moment
 DLLEXPORT void gnrIBD_PLINK(LongBool *Verbose, LongBool *DataCache, int *NumThread,
@@ -893,12 +927,12 @@ DLLEXPORT void gnrIBD_PLINK(LongBool *Verbose, LongBool *DataCache, int *NumThre
 		IBD::Init_EPrIBD_IBS(*UseSpecificAFreq ? AlleleFreq : NULL,
 			out_afreq, !(*UseSpecificAFreq));
 		// the upper-triangle genetic covariance matrix
-		CdMatTriDiag<IBS::TIBSflag> IBS(IBS::TIBSflag(), n);
+		CdMatTriDiag<IBS::TIBS_Flag> IBS(IBS::TIBS_Flag(), n);
 		// Calculate the IBS matrix
-		IBS::DoIBSCalculate(IBS, *NumThread, "PLINK IBD:", *Verbose);
+		IBS::DoPLINKIBSCalculate(IBS, *NumThread, "PLINK IBD:", *Verbose);
 
 		// output
-		IBS::TIBSflag *p = IBS.get();
+		IBS::TIBS_Flag *p = IBS.get();
 		for (int i=0; i < n; i++)
 		{
 			out_k0[i*n + i] = out_k1[i*n + i] = 0;
@@ -1095,6 +1129,117 @@ DLLEXPORT void gnrPairIBDLogLik(int *n, int *geno1, int *geno2, double *AlleleFr
 }
 
 
+/// to compute the IBD coefficients by KING method of moment
+DLLEXPORT void gnrIBD_KING(LongBool *Verbose, LongBool *DataCache, int *NumThread,
+	int *method_idx, double *out_k0, double *out_k1, LongBool *out_err)
+{
+	CORETRY
+		// ******** To cache the genotype data ********
+		if (*DataCache)
+		{
+			double GenoSum=0;
+			gnrCacheGeno(&GenoSum, NULL);
+			if (*Verbose)
+				Rprintf("KING IBD:\tthe sum of all working genotypes (0, 1 and 2) = %.0f\n", GenoSum);
+		}
+
+		// ******** The calculation of genetic covariance matrix ********
+
+		// the number of samples
+		const int n = MCWorkingGeno.Space.SampleNum();
+		// to detect the block size
+		IBS::AutoDetectSNPBlockSize(n);
+
+		// method
+		switch (*method_idx)
+		{
+		case 1: // IBD KING homo IBD estimator
+			{
+				// the upper-triangle IBD matrix
+				CdMatTri<IBS::TKINGHomoFlag> IBD(n);
+				// Calculate the IBD matrix
+				IBS::DoKINGCalculate(IBD, *NumThread, "KING IBD:", *Verbose);
+				// output
+				IBS::TKINGHomoFlag *p = IBD.get();
+				for (int i=0; i < n; i++)
+				{
+					out_k0[i*n + i] = out_k1[i*n + i] = 0;
+					p ++;
+					for (int j=i+1; j < n; j++, p++)
+					{
+						double theta = 0.5 - p->SumSq / (8 * p->SumAFreq);
+						double k0 = p->IBS0 / (2 * p->SumAFreq2);
+						double k1 = 2 - 2*k0 - 4*theta;
+						out_k0[i*n + j] = out_k0[j*n + i] = k0;
+						out_k1[i*n + j] = out_k1[j*n + i] = k1;
+					}
+				}
+			}
+			break;
+
+		case 2: // IBD KING robust IBD estimator across family
+			{
+				// the upper-triangle IBD matrix
+				CdMatTri<IBS::TKINGRobustFlag> IBD(n);
+				// Calculate the IBD matrix
+				IBS::DoKINGCalculate(IBD, *NumThread, "KING IBD:", *Verbose);
+				// output
+				IBS::TKINGRobustFlag *p = IBD.get();
+				for (int i=0; i < n; i++)
+				{
+					out_k0[i*n + i] = out_k1[i*n + i] = 0;
+					p ++;
+					for (int j=i+1; j < n; j++, p++)
+					{
+						double theta = 0.5 - p->SumSq / (4.0 * min(p->N1_Aa, p->N2_Aa));
+						double k0 = p->IBS0 / (2 * p->SumAFreq2);
+						double k1 = 2 - 2*k0 - 4*theta;
+						out_k0[i*n + j] = out_k0[j*n + i] = k0;
+						out_k1[i*n + j] = out_k1[j*n + i] = k1;
+					}
+				}
+			}
+			break;
+
+		case 3: // IBD KING robust IBD estimator within family
+			{
+				// the upper-triangle IBD matrix
+				CdMatTri<IBS::TKINGRobustFlag> IBD(n);
+				// Calculate the IBD matrix
+				IBS::DoKINGCalculate(IBD, *NumThread, "KING IBD:", *Verbose);
+				// output
+				IBS::TKINGRobustFlag *p = IBD.get();
+				for (int i=0; i < n; i++)
+				{
+					out_k0[i*n + i] = out_k1[i*n + i] = 0;
+					p ++;
+					for (int j=i+1; j < n; j++, p++)
+					{
+						double theta = 0.5 - p->SumSq / (2.0 *(p->N1_Aa + p->N2_Aa));
+						double k0 = p->IBS0 / (2 * p->SumAFreq2);
+						double k1 = 2 - 2*k0 - 4*theta;
+						out_k0[i*n + j] = out_k0[j*n + i] = k0;
+						out_k1[i*n + j] = out_k1[j*n + i] = k1;
+					}
+				}
+			}
+			break;
+
+		default:
+			throw "Internal error in 'gnrIBD_KING'.";
+		}
+
+		// output
+		*out_err = 0;
+	CORECATCH(*out_err = 1)
+}
+
+
+
+// ***********************************************************************
+// the functions for linkage disequilibrium (LD)
+//
+
 /// the functions for Linkage Disequilibrium (LD) analysis
 DLLEXPORT void gnrLDpair(int *snp1, int *snp2, int *len, int *method,
 	double *out_LD, double &pA_A, double &pA_B, double &pB_A, double &pB_B,
@@ -1214,13 +1359,13 @@ DLLEXPORT void gnrDiss(LongBool *Verbose, LongBool *DataCache, int *NumThread,
 		// to detect the block size
 		IBS::AutoDetectSNPBlockSize(n);
 		// the upper-triangle genetic covariance matrix
-		CdMatTri<IBS::TDistflag> Dist(n);
+		CdMatTri<IBS::TDissflag> Dist(n);
 
 		// Calculate the genetic distance matrix
-		IBS::DoDistCalculate(Dist, *NumThread, "", *Verbose);
+		IBS::DoDissCalculate(Dist, *NumThread, "", *Verbose);
 
 		// output
-		IBS::TDistflag *p = Dist.get();
+		IBS::TDissflag *p = Dist.get();
 		for (int i=0; i < n; i++)
 		{
 			out_Diss[i*n + i] = 2 * (p->SumGeno / p->SumAFreq);
@@ -1433,7 +1578,6 @@ DLLEXPORT void gnrConvGDS2BED(char **bedfn, LongBool *SNPOrder,
 	CORETRY
 		MCWorkingGeno.Progress.Info = "\t\tOutput: ";
 		MCWorkingGeno.Progress.Show() = *verbose;
-		MCWorkingGeno.Progress.Init(MCWorkingGeno.Space.SampleNum());
 
 		ofstream file(*bedfn, ios::binary);
 		if (!file.good())
@@ -1447,6 +1591,8 @@ DLLEXPORT void gnrConvGDS2BED(char **bedfn, LongBool *SNPOrder,
 		}
 
 		CdBufSpace buf(MCWorkingGeno.Space, !(*SNPOrder), CdBufSpace::acInc);
+		MCWorkingGeno.Progress.Init(buf.IdxCnt());
+
 		long nRe = buf.BufElmSize() % 4;
 		long nPack = (nRe > 0) ? (buf.BufElmSize()/4 + 1) : (buf.BufElmSize()/4);
 		vector<char> geno(nPack, 0);
